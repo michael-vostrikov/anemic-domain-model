@@ -60,6 +60,7 @@ class ProductController extends BaseApiController
     public function actionSave(int $id): Response
     {
         $product = $this->findEntity($id, needLock: true);
+        sleep(3);  // for testing locks
 
         $validationResult = $this->productService->isEditAllowed($product);
         if ($validationResult->hasErrors()) {
@@ -88,6 +89,7 @@ class ProductController extends BaseApiController
     public function actionSendForReview(int $id): Response
     {
         $product = $this->findEntity($id, needLock: true);
+        sleep(3);  // for testing locks
 
         $productValidationResult = $this->productService->isSendForReviewAllowed($product);
         if ($productValidationResult->hasErrors()) {
