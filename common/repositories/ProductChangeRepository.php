@@ -25,4 +25,9 @@ class ProductChangeRepository
     {
         $productChange->delete();
     }
+
+    public function deleteById(int $productId): void
+    {
+        ProductChange::deleteAll(['product_id' => $productId]);
+    }
 }
