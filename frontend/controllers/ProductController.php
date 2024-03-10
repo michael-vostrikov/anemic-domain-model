@@ -37,6 +37,7 @@ class ProductController extends BaseApiController
                     'create' => ['post'],
                     'save' => ['post'],
                     'view' => ['get'],
+                    'send-for-review' => ['post'],
                 ],
             ],
         ]);
@@ -82,6 +83,20 @@ class ProductController extends BaseApiController
         $product = $this->productService->view($product);
 
         return $this->successResponse($product->toArray());
+    }
+
+    public function actionSendForReview(int $id): Response
+    {
+        $product = $this->findEntity($id, needLock: true);
+
+        $productValidationResult = $this->productService->isSendForReviewAllowed($product);
+        if ($productValidationResult->hasErrors()) {
+            return $this->validationErrorResponse($productValidationResult->getErrors());
+        }
+
+        $review = $this->productService->sendForReview($productValidationResult, $this->getCurrentUser());
+
+        return $this->successResponse($review->toArray());
     }
 
     private function findEntity(int $id, bool $needLock): Product
