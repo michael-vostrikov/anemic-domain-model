@@ -21,6 +21,7 @@ return [
             'identityCookie' => ['name' => '_identity-frontend', 'httpOnly' => true],
         ],
         'session' => [
+            'class' => 'yii\web\DbSession',
             // this is the name of the session cookie used for login on the frontend
             'name' => 'advanced-frontend',
         ],
@@ -36,14 +37,12 @@ return [
         'errorHandler' => [
             'errorAction' => 'site/error',
         ],
-        /*
         'urlManager' => [
             'enablePrettyUrl' => true,
             'showScriptName' => false,
             'rules' => [
             ],
         ],
-        */
     ],
     'params' => $params,
 ];

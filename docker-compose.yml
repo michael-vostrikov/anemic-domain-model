@@ -3,13 +3,12 @@ version: '3.2'
 services:
 
   frontend:
+    container_name: 'adm-frontend'
     build: frontend
     ports:
-      - 20080:80
+      - '80:80'
     volumes:
-      # Re-use local composer cache via host-volume
       - ~/.composer-docker/cache:/root/.composer/cache:delegated
-      # Mount source-code for development
       - ./:/app
 
   mysql:
@@ -19,10 +18,5 @@ services:
       - MYSQL_DATABASE=yii2advanced
       - MYSQL_USER=yii2advanced
       - MYSQL_PASSWORD=secret
-
-  #pgsql:
-  #  image: postgres:9.5
-  #  environment:
-  #    - POSTGRES_DB=yii2advanced
-  #    - POSTGRES_USER=yii2advanced
-  #    - POSTGRES_PASSWORD=secret
+    ports:
+      - '3306:3306'
