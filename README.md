@@ -1,60 +1,33 @@
-<p align="center">
-    <a href="https://github.com/yiisoft" target="_blank">
-        <img src="https://avatars0.githubusercontent.com/u/993323" height="100px">
-    </a>
-    <h1 align="center">Yii 2 Advanced Project Template</h1>
-    <br>
-</p>
+### Anemic domain model and business logic in services
 
-Yii 2 Advanced Project Template is a skeleton [Yii 2](https://www.yiiframework.com/) application best for
-developing complex Web applications with multiple tiers.
+The project contains an implementation of complex business requirements with Anemic Domain Model and business logic in services.
+The idea is to show that it's not possible to move everything which is in services to entities
+without complicating the code and breaking level of abstraction, which means that services are always necessary.  
 
-The template includes three tiers: front end, back end, and console, each of which
-is a separate Yii application.
+Description:\
+https://habr.com/ru/articles/800789/
 
-The template is designed to work in a team development environment. It supports
-deploying the application in different environments.
+Running:
+```sh
+php composer.phar install
+php init --env=Development
+docker-compose up -d
+docker exec -it adm-frontend /bin/bash -c 'php yii migrate/up --interactive=0'
+```
 
-Documentation is at [docs/guide/README.md](docs/guide/README.md).
+Project opens ports 80, 81, 3306. Change them in `docker-compose.yml` and one port in `frontend/views/site/index.php` before running, if they are busy on your machine.
 
-[![Latest Stable Version](https://img.shields.io/packagist/v/yiisoft/yii2-app-advanced.svg)](https://packagist.org/packages/yiisoft/yii2-app-advanced)
-[![Total Downloads](https://img.shields.io/packagist/dt/yiisoft/yii2-app-advanced.svg)](https://packagist.org/packages/yiisoft/yii2-app-advanced)
-[![build](https://github.com/yiisoft/yii2-app-advanced/workflows/build/badge.svg)](https://github.com/yiisoft/yii2-app-advanced/actions?query=workflow%3Abuild)
+Endpoints `/product/save` and `/product/send-for-review` call `sleep(3)` for testing locks in parallel processes.
 
-DIRECTORY STRUCTURE
--------------------
+Test page:\
+[http://127.0.0.1](http://127.0.0.1)
+
+You can edit GET-parameters by clicking on them.
+
+Login page:\
+[http://127.0.0.1/site/login](http://127.0.0.1/site/login)
 
 ```
-common
-    config/              contains shared configurations
-    mail/                contains view files for e-mails
-    models/              contains model classes used in both backend and frontend
-    tests/               contains tests for common classes    
-console
-    config/              contains console configurations
-    controllers/         contains console controllers (commands)
-    migrations/          contains database migrations
-    models/              contains console-specific model classes
-    runtime/             contains files generated during runtime
-backend
-    assets/              contains application assets such as JavaScript and CSS
-    config/              contains backend configurations
-    controllers/         contains Web controller classes
-    models/              contains backend-specific model classes
-    runtime/             contains files generated during runtime
-    tests/               contains tests for backend application    
-    views/               contains view files for the Web application
-    web/                 contains the entry script and Web resources
-frontend
-    assets/              contains application assets such as JavaScript and CSS
-    config/              contains frontend configurations
-    controllers/         contains Web controller classes
-    models/              contains frontend-specific model classes
-    runtime/             contains files generated during runtime
-    tests/               contains tests for frontend application
-    views/               contains view files for the Web application
-    web/                 contains the entry script and Web resources
-    widgets/             contains frontend widgets
-vendor/                  contains dependent 3rd-party packages
-environments/            contains environment-based overrides
+user
+123456
 ```
