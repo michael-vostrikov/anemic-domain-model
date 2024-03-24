@@ -7,6 +7,8 @@ namespace common\models;
  *
  * @property int $product_id
  * @property mixed $field_values
+ *
+ * @property-read Category $category
  */
 class ProductChange extends \yii\db\ActiveRecord
 {

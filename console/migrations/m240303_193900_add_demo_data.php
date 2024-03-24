@@ -55,6 +55,7 @@ class m240303_193900_add_demo_data extends yii\db\Migration
         $category->save();
 
 
+        // With logic in entities how to create test data in a desired state? Use hacks like Reflection and manual SQL queries?
         $product = new Product();
         $product->id = 1;
         $product->user_id = 1;

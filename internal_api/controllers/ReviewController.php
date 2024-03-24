@@ -3,12 +3,9 @@
 namespace internal_api\controllers;
 
 use common\controllers\BaseApiController;
-use common\models\Review;
-use common\repositories\ReviewRepository;
 use internal_api\services\ReviewService;
 use yii\filters\auth\HttpBearerAuth;
 use yii\filters\VerbFilter;
-use yii\web\NotFoundHttpException;
 use yii\web\Response;
 
 class ReviewController extends BaseApiController
@@ -18,7 +15,6 @@ class ReviewController extends BaseApiController
         $module,
         $config,
         private readonly ReviewService $reviewService,
-        private readonly ReviewRepository $reviewRepository,
     ) {
         parent::__construct($id, $module, $config);
     }
@@ -54,30 +50,15 @@ class ReviewController extends BaseApiController
 
     public function actionAccept(int $id): Response
     {
-        $review = $this->findEntity($id, needLock: true);
-
-        $review = $this->reviewService->accept($review);
+        $review = $this->reviewService->accept($id);
 
         return $this->successResponse($review->toArray());
     }
 
     public function actionDecline(int $id): Response
     {
-        $review = $this->findEntity($id, needLock: true);
-
-        $review = $this->reviewService->decline($review);
+        $review = $this->reviewService->decline($id);
 
         return $this->successResponse($review->toArray());
-    }
-
-    private function findEntity(int $id, bool $needLock): Review
-    {
-        $review = $this->reviewRepository->findById($id, $needLock);
-
-        if ($review === null) {
-            throw new NotFoundHttpException('Entity not found');
-        }
-
-        return $review;
     }
 }

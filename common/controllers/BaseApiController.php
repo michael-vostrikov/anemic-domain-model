@@ -2,10 +2,15 @@
 
 namespace common\controllers;
 
+use common\exceptions\AccessDeniedException;
+use common\exceptions\EntityNotFoundException;
+use common\exceptions\ValidationException;
 use common\models\User;
 use Yii;
 use yii\filters\AccessControl;
 use yii\web\Controller;
+use yii\web\ForbiddenHttpException;
+use yii\web\NotFoundHttpException;
 use yii\web\Request;
 use yii\web\Response;
 
@@ -40,6 +45,19 @@ class BaseApiController extends Controller
         $this->response->format = Response::FORMAT_JSON;
 
         return parent::beforeAction($action);
+    }
+
+    public function runAction($id, $params = [])
+    {
+        try {
+            return parent::runAction($id, $params);
+        } catch (ValidationException $exception) {
+            return $this->validationErrorResponse($exception->getErrors());
+        } catch (EntityNotFoundException $exception) {
+            throw new NotFoundHttpException('Entity not found');
+        } catch (AccessDeniedException $exception) {
+            throw new ForbiddenHttpException('Access denied');
+        }
     }
 
     protected function validationErrorResponse(array $errors): Response

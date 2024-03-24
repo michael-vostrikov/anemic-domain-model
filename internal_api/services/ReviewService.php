@@ -4,88 +4,76 @@ declare(strict_types=1);
 
 namespace internal_api\services;
 
-use common\helpers\DateHelper;
+use common\exceptions\EntityNotFoundException;
 use common\models\Product;
-use common\models\ProductChange;
-use common\models\ProductStatus;
 use common\models\Review;
-use common\models\ReviewStatus;
-use common\repositories\ProductChangeRepository;
 use common\repositories\ProductRepository;
 use common\repositories\ReviewRepository;
-use RuntimeException;
 use yii\db\Connection;
 
+// INFO: This is an application service
 class ReviewService
 {
     public function __construct(
         private readonly ProductRepository $productRepository,
-        private readonly ProductChangeRepository $productChangeRepository,
         private readonly ReviewRepository $reviewRepository,
         private readonly Connection $dbConnection,
     ) {
     }
 
-    public function accept(Review $review): Review
+    private function findReview(int $reviewId): Review
     {
-        if ($review->status !== ReviewStatus::SENT->value) {
-            throw new RuntimeException('Review is already processed');
+        $review = $this->reviewRepository->findById($reviewId, needLock: true);
+
+        if ($review === null) {
+            throw new EntityNotFoundException();
         }
-
-        $product = $this->productRepository->findById($review->product_id, needLock: true);
-
-        $transaction = $this->dbConnection->beginTransaction();
-
-        $this->saveReviewResult($review, ReviewStatus::ACCEPTED);
-        $this->acceptProductChanges($product, $review);
-
-        $transaction->commit();
 
         return $review;
     }
 
-    public function decline(Review $review): Review
+    private function findProduct(int $productId): Product
     {
-        if ($review->status !== ReviewStatus::SENT->value) {
-            throw new RuntimeException('Review is already processed');
+        $product = $this->productRepository->findById($productId, needLock: true);
+
+        if ($product === null) {
+            throw new EntityNotFoundException();
         }
 
-        $product = $this->productRepository->findById($review->product_id, needLock: true);
-
-        $transaction = $this->dbConnection->beginTransaction();
-
-        $this->saveReviewResult($review, ReviewStatus::DECLINED);
-        $this->declineProductChanges($product);
-
-        $transaction->commit();
-
-        return $review;
+        return $product;
     }
 
-    private function saveReviewResult(Review $review, ReviewStatus $status): void
+    public function accept(int $reviewId): Review
     {
-        $review->status = $status->value;
-        $review->processed_at = DateHelper::getCurrentDate();
+        $review = $this->findReview($reviewId);
+        $product = $this->findProduct($review->product_id);
+
+        // Should it be in a domain service? What if someone accepts changes in one entity without domain service?
+        $review->accept();
+        $product->acceptChangesFromReview($review);
+
+        // Direct transactions for several aggregates are not allowed by DDD
+        $transaction = $this->dbConnection->beginTransaction();
         $this->reviewRepository->save($review);
+        $this->productRepository->save($product);
+        $transaction->commit();
+
+        return $review;
     }
 
-    private function acceptProductChanges(Product $product, Review $review): void
+    public function decline(int $reviewId): Review
     {
-        foreach ($review->field_values as $field => $fieldChange) {
-            $newValue = $fieldChange['new'];
-            $product->$field = $newValue;
-        }
-        $product->status = ProductStatus::PUBLISHED;
+        $review = $this->findReview($reviewId);
+        $product = $this->findProduct($review->product_id);
+
+        $review->decline();
+        $product->declineChangesFromReview($review);
+
+        $transaction = $this->dbConnection->beginTransaction();
+        $this->reviewRepository->save($review);
         $this->productRepository->save($product);
+        $transaction->commit();
 
-        $this->productChangeRepository->deleteById($product->id);
-    }
-
-    private function declineProductChanges(Product $product): void
-    {
-        $product->status = ProductStatus::HIDDEN;
-        $this->productRepository->save($product);
-
-        $this->productChangeRepository->deleteById($product->id);
+        return $review;
     }
 }

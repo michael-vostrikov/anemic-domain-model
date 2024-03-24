@@ -4,29 +4,24 @@ declare(strict_types=1);
 
 namespace frontend\services;
 
-use common\helpers\DateHelper;
+use common\exceptions\AccessDeniedException;
+use common\exceptions\EntityNotFoundException;
+use common\exceptions\ValidationException;
 use common\models\Product;
-use common\models\ProductChange;
-use common\models\ProductStatus;
 use common\models\Review;
-use common\models\ReviewStatus;
 use common\models\User;
-use common\repositories\CategoryRepository;
-use common\repositories\ProductChangeRepository;
 use common\repositories\ProductRepository;
 use common\repositories\ReviewRepository;
 use frontend\forms\CreateProductForm;
 use frontend\forms\SaveProductForm;
-use RuntimeException;
 use yii\db\Connection;
 
+// INFO: This is an application service
 class ProductService
 {
     public function __construct(
         private readonly ProductRepository $productRepository,
-        private readonly ProductChangeRepository $productChangeRepository,
         private readonly ReviewRepository $reviewRepository,
-        private readonly CategoryRepository $categoryRepository,
         private readonly Connection $dbConnection,
         private readonly AnotherSystemClient $anotherSystemClient,
     ) {
@@ -34,134 +29,67 @@ class ProductService
 
     public function create(CreateProductForm $form, User $user): Product
     {
+        if (!$form->validate()) {
+            throw new ValidationException($form->getErrors());
+        }
+
         $product = new Product();
+        $product->create($user, $form->name);
 
-        $product->user_id = $user->id;
-        $product->status = ProductStatus::HIDDEN->value;
-        $product->created_at = DateHelper::getCurrentDate();
-
-        $product->category_id = null;
-        $product->name = $form->name;
-        $product->description = '';
-
+        $transaction = $this->dbConnection->beginTransaction();
         $this->productRepository->save($product);
+        $transaction->commit();
 
         return $product;
     }
 
-    public function isEditAllowed(Product $product): ProductValidationResult
+    private function findProduct(int $productId, User $user): Product
     {
-        $productValidationResult = new ProductValidationResult($product);
+        $product = $this->productRepository->findById($productId, needLock: true);
 
-        if ($product->status === ProductStatus::ON_REVIEW->value) {
-            $productValidationResult->addError('status', 'Product is on review');
+        // We imitate controller behavior with exceptions
+        if ($product === null) {
+            throw new EntityNotFoundException();
         }
 
-        return $productValidationResult;
-    }
-
-    public function save(ProductValidationResult $productValidationResult, SaveProductForm $form): ProductChange
-    {
-        $product = $productValidationResult->getProduct();
-        $productChange = $this->productChangeRepository->findById($product->id);
-
-        if ($productChange === null) {
-            $productChange = new ProductChange();
-            $productChange->product_id = $product->id;
+        if (!$product->isOwner($user)) {
+            throw new AccessDeniedException();
         }
-
-        $fieldValues = [];
-        if ($form->category_id !== $product->category_id) {
-            $fieldValues['category_id'] = $form->category_id;
-        }
-        if ($form->name !== $product->name) {
-            $fieldValues['name'] = $form->name;
-        }
-        if ($form->description !== $product->description) {
-            $fieldValues['description'] = $form->description;
-        }
-        $productChange->field_values = $fieldValues;
-
-        $this->productChangeRepository->save($productChange);
-
-        return $productChange;
-    }
-
-    public function view(Product $product): Product
-    {
-        $productChange = $this->productChangeRepository->findById($product->id);
-
-        $this->applyChanges($product, $productChange);
 
         return $product;
     }
 
-    private function applyChanges(Product $product, ?ProductChange $productChange): void
+    public function save(int $productId, SaveProductForm $form, User $user): Product
     {
-        if ($productChange !== null) {
-            foreach ($productChange->field_values as $field => $value) {
-                $product->$field = $value;
-            }
-        }
+        $product = $this->findProduct($productId, $user);
+
+        $product->edit($form);
+
+        $transaction = $this->dbConnection->beginTransaction();
+        $this->productRepository->save($product);
+        $transaction->commit();
+
+        return $product;
     }
 
-    public function isSendForReviewAllowed(Product $product): ProductValidationResult
+    public function view(int $productId, User $user): Product
     {
-        $productChange = $this->productChangeRepository->findById($product->id);
-        $validationResult = new ProductValidationResult($product, $productChange);
+        $product = $this->findProduct($productId, $user);
 
-        $newProduct = clone $product;
-        $this->applyChanges($newProduct, $productChange);
-
-        if ($newProduct->status === ProductStatus::ON_REVIEW->value) {
-            $validationResult->addError('status', 'Product is already on review');
-        } elseif ($productChange === null) {
-            $validationResult->addError('id', 'No changes to send');
-        } else {
-            $category = $this->categoryRepository->findById($newProduct->category_id, true);
-
-            if ($newProduct->category_id === null) {
-                $validationResult->addError('category_id', 'Category is not set');
-            } elseif ($category === null) {
-                $validationResult->addError('category_id', 'Category not found');
-            } elseif ($category->is_active !== true) {
-                $validationResult->addError('category_id', 'Category is not active');
-            }
-
-            if ($newProduct->name === '') {
-                $validationResult->addError('name', 'Name is not set');
-            }
-            if ($newProduct->description === '') {
-                $validationResult->addError('description', 'Description is not set');
-            }
-            if (strlen($newProduct->description) < 300) {
-                $validationResult->addError('description', 'Description is too small');
-            }
-        }
-
-        return $validationResult;
+        return $product->getProductWithAppliedChanges();
     }
 
-    public function sendForReview(ProductValidationResult $productValidationResult, User $user): Review
+    public function sendForReview(int $productId, User $user): Review
     {
-        $product = $productValidationResult->getProduct();
-        $productChange = $productValidationResult->getProductChange();
-        if ($productChange === null) {
-            throw new RuntimeException('This should not happen');
-        }
+        $product = $this->findProduct($productId, $user);
 
-        $reviewFieldValues = $this->buildReviewFieldValues($product, $productChange);
+        $review = $product->sendForReview($user);
 
-        $review = new Review();
-        $review->user_id = $user->id;
-        $review->product_id = $product->id;
-        $review->field_values = $reviewFieldValues;
-        $review->status = ReviewStatus::CREATED->value;
-        $review->created_at = DateHelper::getCurrentDate();
-        $review->processed_at = null;
+        // We have a logic 'save - send - save'.
+        // This is a business logic, it comes from business requirements.
+        // Should we move it somewhere else from this class?
 
-        $product->status = ProductStatus::ON_REVIEW;
-
+        // How to do this correctly? Transactions should not cross aggregate boundaries by DDD.
         $transaction = $this->dbConnection->beginTransaction();
         $this->productRepository->save($product);
         $this->reviewRepository->save($review);
@@ -169,23 +97,13 @@ class ProductService
 
         $this->sendToAnotherSystem($review);
 
-        $review->status = ReviewStatus::SENT->value;
+        $review->markAsSent();
+
+        $transaction = $this->dbConnection->beginTransaction();
         $this->reviewRepository->save($review);
+        $transaction->commit();
 
         return $review;
-    }
-
-    private function buildReviewFieldValues(Product $product, ProductChange $productChange): array
-    {
-        $reviewFieldValues = [];
-        $productFieldValues = $productChange->field_values;
-        foreach ($productFieldValues as $key => $newValue) {
-            $oldValue = $product->$key;
-            $fieldChange = ['new' => $newValue, 'old' => $oldValue];
-            $reviewFieldValues[$key] = $fieldChange;
-        }
-
-        return $reviewFieldValues;
     }
 
     private function sendToAnotherSystem(Review $review): void
