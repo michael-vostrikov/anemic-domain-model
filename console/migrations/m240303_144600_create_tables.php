@@ -45,6 +45,7 @@ class m240303_144600_create_tables extends yii\db\Migration
         $this->createTable('category', [
             'id' => $this->primaryKey()->notNull(),
             'name' => $this->string(100)->notNull(),
+            'is_active' => $this->tinyInteger(1)->notNull(),
         ], $tableOptions);
 
 

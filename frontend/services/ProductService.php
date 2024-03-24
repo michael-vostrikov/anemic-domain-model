@@ -11,6 +11,7 @@ use common\models\ProductStatus;
 use common\models\Review;
 use common\models\ReviewStatus;
 use common\models\User;
+use common\repositories\CategoryRepository;
 use common\repositories\ProductChangeRepository;
 use common\repositories\ProductRepository;
 use common\repositories\ReviewRepository;
@@ -25,6 +26,7 @@ class ProductService
         private readonly ProductRepository $productRepository,
         private readonly ProductChangeRepository $productChangeRepository,
         private readonly ReviewRepository $reviewRepository,
+        private readonly CategoryRepository $categoryRepository,
         private readonly Connection $dbConnection,
         private readonly AnotherSystemClient $anotherSystemClient,
     ) {
@@ -116,9 +118,16 @@ class ProductService
         } elseif ($productChange === null) {
             $validationResult->addError('id', 'No changes to send');
         } else {
+            $category = $this->categoryRepository->findById($newProduct->category_id, true);
+
             if ($newProduct->category_id === null) {
                 $validationResult->addError('category_id', 'Category is not set');
+            } elseif ($category === null) {
+                $validationResult->addError('category_id', 'Category not found');
+            } elseif ($category->is_active !== true) {
+                $validationResult->addError('category_id', 'Category is not active');
             }
+
             if ($newProduct->name === '') {
                 $validationResult->addError('name', 'Name is not set');
             }

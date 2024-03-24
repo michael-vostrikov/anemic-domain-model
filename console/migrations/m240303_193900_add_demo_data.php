@@ -45,11 +45,13 @@ class m240303_193900_add_demo_data extends yii\db\Migration
         $category = new Category();
         $category->id = 1;
         $category->name = 'Category 1';
+        $category->is_active = true;
         $category->save();
 
         $category = new Category();
         $category->id = 2;
         $category->name = 'Category 2';
+        $category->is_active = false;
         $category->save();
 
 
