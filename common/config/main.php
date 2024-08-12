@@ -16,6 +16,12 @@ return [
             \yii\mutex\MysqlMutex::class => function () {
                 return new \yii\mutex\MysqlMutex();
             },
+            \GuzzleHttp\Client::class => function () {
+                return new \GuzzleHttp\Client([
+                    'base_uri' => getenv('ANOTHER_SYSTEM_URL'),
+                    'auth' => [getenv('ANOTHER_SYSTEM_USER'), getenv('ANOTHER_SYSTEM_PASSWORD')],
+                ]);
+            },
         ],
     ],
 ];
